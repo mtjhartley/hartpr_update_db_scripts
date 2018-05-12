@@ -3,6 +3,30 @@ import struct
 import uuid
 import create_data_for_db
 
+def main():
+	cnxn = create_connection(r'Driver={ODBC Driver 17 for SQL Server};'
+    r'Server=(localdb)\MSSQLLocalDB;'
+    r'Database=HartPRDB;'
+    r'Trusted_Connection=yes;'
+	r'QuotedID=NO;'
+	)
+
+
+
+def create_connection(connection_string):
+	return pyodbc.connect(connection_string)
+
+def handle_datetimeoffset(dto_value):
+    # ref: https://github.com/mkleehammer/pyodbc/issues/134#issuecomment-281739794
+    tup = struct.unpack("<6hI2h", dto_value)  # e.g., (2017, 3, 16, 10, 35, 18, 0, -6, 0)
+    tweaked = [tup[i] // 100 if i == 6 else tup[i] for i in range(len(tup))]
+    return "{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}.{:07d} {:+03d}:{:02d}".format(*tweaked)
+
+
+
+
+
+
 
 #ESTABLISH CONNECTION AND HELPER METHODS TO READ DATA IN PYTHON
 conn_str = (
@@ -13,13 +37,6 @@ conn_str = (
 	r'QuotedID=NO;'
     )
 cnxn = pyodbc.connect(conn_str)
-
-
-def handle_datetimeoffset(dto_value):
-    # ref: https://github.com/mkleehammer/pyodbc/issues/134#issuecomment-281739794
-    tup = struct.unpack("<6hI2h", dto_value)  # e.g., (2017, 3, 16, 10, 35, 18, 0, -6, 0)
-    tweaked = [tup[i] // 100 if i == 6 else tup[i] for i in range(len(tup))]
-    return "{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}.{:07d} {:+03d}:{:02d}".format(*tweaked)
 
 cnxn.add_output_converter(-155, handle_datetimeoffset)
 cursor = cnxn.cursor()
@@ -51,6 +68,8 @@ row = cursor.fetchone()
 if (row):
 	#end it all
 	print ("this tournament exists already, ending application")
+
+
 else:
 	print ("adding this tournament")
 	cursor.execute("""INSERT into Tournaments (Id, Name, URL, Date, CreatedAt, UpdatedAt, SggTournamentId, Website) OUTPUT INSERTED.Id VALUES (NEWID(), "%s", "%s", "%s", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "%d", "%s")""" % (tournament["name"], tournament["url"], tournament["date"], tournament["sgg_tournament_id"], tournament["website"]))
@@ -67,13 +86,11 @@ player_insert_query_string = """INSERT into Players (Id, FirstName, LastName, Ta
 
 
 for player in players:
-	if player["sgg_player_id"] in player_sgg_ids_to_guids_from_db_map.keys():
+	if str(player["sgg_player_id"]) in player_sgg_ids_to_guids_from_db_map.keys():
 		update_query_with_params = player_update_query_string % (player["fname"], player["lname"], player["tag"], player["state"], player["sgg_player_id"])
-		print (update_query_with_params)
 		cursor.execute(update_query_with_params)
 	else:
 		insert_query_with_params = player_insert_query_string % (player["fname"], player["lname"], player["tag"], player["state"], player["sgg_player_id"])
-		print (insert_query_with_params)
 		cursor.execute(insert_query_with_params)
 		row = cursor.fetchone()
 		player_sgg_ids_to_guids_from_db_map.update( {str(player["sgg_player_id"]): str(row[0])} )
