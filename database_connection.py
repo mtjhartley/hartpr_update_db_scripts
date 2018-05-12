@@ -124,6 +124,7 @@ def main():
 
 main()
 
+#TODO: Add RAW INPUT LMAO for tournament slug
 
 
 

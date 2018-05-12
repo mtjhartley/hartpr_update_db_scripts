@@ -25,7 +25,6 @@ def create_data_for_database_entry(tourney_name, event_name):
 
 	data_dictionary.update({"tournament": tournament, "sets": sets, "players": players})
 
-	#print (data_dictionary)
 	print ("Data dictionary successfully created!")
 	return data_dictionary
 
@@ -82,7 +81,7 @@ def create_tournament_entity(tournament_from_api):
 	tournament = {}
 	tournament["name"] = tournament_from_api["name"]
 	tournament["website"] = "smashgg"
-	tournament["url"] = tournament_from_api["tournament_full_source_url"]
+	tournament["url"] = tournament_from_api["tournament_full_source_url"].split('/')[-1]
 	#format date of tournament from unix time to acceptable dt
 	start_date_unix = tournament_from_api['start_at']
 	start_date_object = datetime.date.fromtimestamp(start_date_unix)
