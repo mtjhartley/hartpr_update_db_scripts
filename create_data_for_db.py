@@ -6,6 +6,7 @@ import sys
 smash = pysmash.SmashGG()
 
 def create_data_for_database_entry(tourney_name, event_name):
+	print ("Creating data dictionary from smashgg API...")
 	data_dictionary = {}
 
 	brackets = smash.tournament_show_event_brackets(tourney_name, event_name)
@@ -25,6 +26,7 @@ def create_data_for_database_entry(tourney_name, event_name):
 	data_dictionary.update({"tournament": tournament, "sets": sets, "players": players})
 
 	#print (data_dictionary)
+	print ("Data dictionary successfully created!")
 	return data_dictionary
 
 
