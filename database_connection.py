@@ -1,5 +1,6 @@
 import pyodbc
 import struct
+import sys
 import uuid
 import create_data_for_db
 
@@ -88,7 +89,7 @@ def add_sets_to_db(crsr, sets, player_sgg_ids_to_guids_from_db_map, tournament_i
 	print ("Sets successfully added to the database!")
 
 
-def main():
+def main(tournament_slug):
 	tournament_exists = False
 
 	cnxn = create_connection(r'Driver={ODBC Driver 17 for SQL Server};'
@@ -100,7 +101,7 @@ def main():
 	cnxn.add_output_converter(-155, handle_datetimeoffset)
 	cursor = cnxn.cursor()
 
-	data_dictionary = create_data_for_db.create_data_for_database_entry("emerald-city-v", "melee-singles")
+	data_dictionary = create_data_for_db.create_data_for_database_entry(tournament_slug, "melee-singles")
 	players = data_dictionary["players"]
 	tournament = data_dictionary["tournament"]
 	sets = data_dictionary["sets"]
@@ -122,7 +123,7 @@ def main():
 	print ("Commited changes to database! Thanks for helping out :)")
 	cnxn.close()
 
-main()
+main(sys.argv[1])
 
 #TODO: Add RAW INPUT LMAO for tournament slug
 
