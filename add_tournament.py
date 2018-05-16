@@ -1,26 +1,15 @@
 import pyodbc
 import struct
-import sys
+from datetime import datetime as dt
 import uuid
+import sys
 import create_data_for_db
+import database_connector
 
-player_update_query_string = """UPDATE Players SET FirstName = "%s", LastName = "%s", Tag = "%s", State = "%s", UpdatedAt = CURRENT_TIMESTAMP WHERE SggPlayerId = %d """
-player_insert_query_string = """INSERT into Players (Id, FirstName, LastName, Tag, State, Trueskill, SggPlayerId, CreatedAt, UpdatedAt) OUTPUT INSERTED.Id VALUES (NEWID(), "%s", "%s", "%s", "%s", 2500, %d, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""" 
-set_insert_query_string = """INSERT into Sets (Id, WinnerId, LoserId, CreatedAt, UpdatedAt, TournamentId) VALUES (NEWID(), "%s", "%s", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "%s")""" 
-
-
-#Function to create connection to pyodbc
-def create_connection(connection_string):
-	print ("Attempting to establish connection to database...")
-	return pyodbc.connect(connection_string)
-
-#To handle DATETIMEOFFSET column in MSSQL db
-def handle_datetimeoffset(dto_value):
-    # ref: https://github.com/mkleehammer/pyodbc/issues/134#issuecomment-281739794
-    tup = struct.unpack("<6hI2h", dto_value)  # e.g., (2017, 3, 16, 10, 35, 18, 0, -6, 0)
-    tweaked = [tup[i] // 100 if i == 6 else tup[i] for i in range(len(tup))]
-
-    return "{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}.{:07d} {:+03d}:{:02d}".format(*tweaked)
+player_update_query_string = """UPDATE Players SET FirstName = "%s", LastName = "%s", Tag = "%s", State = "%s", UpdatedAt = CURRENT_TIMESTAMP, LastActive = "%s" WHERE SggPlayerId = %d """
+player_insert_query_string = """INSERT into Players (Id, FirstName, LastName, Tag, State, Trueskill, SggPlayerId, CreatedAt, UpdatedAt, LastActive) OUTPUT INSERTED.Id VALUES (NEWID(), "%s", "%s", "%s", "%s", 2500, %d, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "%s")""" 
+set_with_score_insert_query_string = """INSERT into Sets (Id, WinnerId, LoserId, CreatedAt, UpdatedAt, TournamentId, WinnerScore, LoserScore) VALUES (NEWID(), "%s", "%s", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "%s", %d, %d)""" 
+set_no_score_insert_query_string = """INSERT into Sets (Id, WinnerId, LoserId, CreatedAt, UpdatedAt, TournamentId, WinnerScore, LoserScore) VALUES (NEWID(), "%s", "%s", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "%s", NULL, NULL)""" 
 
 #Get a map of SGG Player Id to Player GUID from db
 def get_player_sgg_ids_to_guids_from_db_map(crsr):
@@ -34,6 +23,17 @@ def get_player_sgg_ids_to_guids_from_db_map(crsr):
 
 	return player_sgg_ids_to_guids_from_db_map
 
+def get_player_last_active_date_map(crsr):
+	player_last_active_date_map = {}
+
+	crsr.execute("SELECT SggPlayerId, LastActive FROM Players")
+	row = crsr.fetchone()
+	while row:
+		player_last_active_date_map.update( {str(row[0]): row[1] } )
+		row = crsr.fetchone()
+
+	return player_last_active_date_map
+
 #Return a boolean and use it to end the main method if the tournament is already in the DB
 def does_tournament_exist(crsr, tournament):
 	print ("Checking if tournament exists in the database already...")
@@ -42,6 +42,7 @@ def does_tournament_exist(crsr, tournament):
 	crsr.execute("SELECT SggTournamentId from TOURNAMENTS where SggTournamentId = %d" % tournament["sgg_tournament_id"])
 	row = crsr.fetchone()
 	if (row):
+		print ("The sggTournamentId is '%s' the content of the row is '%s' and the name of the tournament is '%s' " % (tournament["sgg_tournament_id"], row, tournament["name"]))
 		print ("This tournament exists already, ending application")
 		return True
 	print ("This is a new tournament! Beginning process to add Tournament, Players, and Sets...")
@@ -56,18 +57,25 @@ def add_tournament_to_db(crsr, tournament):
 	return tournament_id_from_database
 
 #Process to add players to DB
-def add_or_update_players_to_db(crsr, players, player_sgg_ids_to_guids_from_db_map):
+def add_or_update_players_to_db(crsr, players, player_sgg_ids_to_guids_from_db_map, player_last_active_date_map):
 	print ("Beginning to add players to the database. If the players already exist, they will be updated with their latest information from smashgg.")
 	player_added_count = 0
 	player_updated_count = 0
 
 	for player in players:
 		if str(player["sgg_player_id"]) in player_sgg_ids_to_guids_from_db_map.keys():
-			update_query_with_params = player_update_query_string % (player["fname"], player["lname"], player["tag"], player["state"], player["sgg_player_id"])
+			#If the player last active date from teh database is none, we're going to assign the player["last_active"] from the tournament.
+			if (player_last_active_date_map[str(player["sgg_player_id"])] == None):
+				pass
+			#if the player[last_active] is smaller than the one from the database, aka adding an older tournament, rewrite the last active to be the db value
+			elif dt.strptime(player["last_active"], "%Y-%m-%d") < dt.strptime(player_last_active_date_map[str(player["sgg_player_id"])].split(" ")[0], "%Y-%m-%d"):
+				player["last_active"] = player_last_active_date_map[str(player["sgg_player_id"])]
+
+			update_query_with_params = player_update_query_string % (player["fname"], player["lname"], player["tag"], player["state"], player["last_active"], player["sgg_player_id"])
 			crsr.execute(update_query_with_params)
 			player_updated_count += 1
 		else:
-			insert_query_with_params = player_insert_query_string % (player["fname"], player["lname"], player["tag"], player["state"], player["sgg_player_id"])
+			insert_query_with_params = player_insert_query_string % (player["fname"], player["lname"], player["tag"], player["state"], player["sgg_player_id"], player["last_active"])
 			crsr.execute(insert_query_with_params)
 			row = crsr.fetchone()
 			player_sgg_ids_to_guids_from_db_map.update( {str(player["sgg_player_id"]): str(row[0])} )
@@ -82,9 +90,17 @@ def add_sets_to_db(crsr, sets, player_sgg_ids_to_guids_from_db_map, tournament_i
 	for set in sets:
 		if str(set["sgg_winner_id"]) in player_sgg_ids_to_guids_from_db_map.keys():
 			set["database_winner_id"] = player_sgg_ids_to_guids_from_db_map[str(set["sgg_winner_id"])]
+		else:
+			#could not match for unknown reason, store player as empty guid. 
+			set["database_winner_id"] = "00000000-0000-0000-0000-000000000000"
 		if str(set["sgg_loser_id"]) in player_sgg_ids_to_guids_from_db_map.keys():
 			set["database_loser_id"] = player_sgg_ids_to_guids_from_db_map[str(set["sgg_loser_id"])]
-		insert_query_with_params = set_insert_query_string % (set["database_winner_id"], set["database_loser_id"], tournament_id_from_database)
+		else:
+			set["database_loser_id"] = "00000000-0000-0000-0000-000000000000"
+		if (set["winner_score"] == None or set["loser_score"] == None ):
+			insert_query_with_params = set_no_score_insert_query_string % (set["database_winner_id"], set["database_loser_id"], tournament_id_from_database)
+		else:
+			insert_query_with_params = set_with_score_insert_query_string % (set["database_winner_id"], set["database_loser_id"], tournament_id_from_database, set["winner_score"], set["loser_score"])
 		crsr.execute(insert_query_with_params)
 	print ("Sets successfully added to the database!")
 
@@ -92,13 +108,8 @@ def add_sets_to_db(crsr, sets, player_sgg_ids_to_guids_from_db_map, tournament_i
 def main(tournament_slug):
 	tournament_exists = False
 
-	cnxn = create_connection(r'Driver={ODBC Driver 17 for SQL Server};'
-	r'Server=(localdb)\MSSQLLocalDB;'
-	r'Database=HartPRDB;'
-	r'Trusted_Connection=yes;'
-	r'QuotedID=NO;'
-	)
-	cnxn.add_output_converter(-155, handle_datetimeoffset)
+	cnxn = database_connector.create_connection(database_connector.CONNECTION_STRING)
+	cnxn.add_output_converter(-155, database_connector.handle_datetimeoffset)
 	cursor = cnxn.cursor()
 
 	data_dictionary = create_data_for_db.create_data_for_database_entry(tournament_slug, "melee-singles")
@@ -112,20 +123,20 @@ def main(tournament_slug):
 	new_tournament_guid = add_tournament_to_db(cursor, tournament)
 
 	player_sgg_ids_to_guids_from_db_map = get_player_sgg_ids_to_guids_from_db_map(cursor)
+	player_last_active_date_map = get_player_last_active_date_map(cursor)
 
-	add_or_update_players_to_db(cursor, players, player_sgg_ids_to_guids_from_db_map)
+	add_or_update_players_to_db(cursor, players, player_sgg_ids_to_guids_from_db_map, player_last_active_date_map)
 
 	add_sets_to_db(cursor, sets, player_sgg_ids_to_guids_from_db_map, new_tournament_guid)
 
-	print ("All changes are ready to be staged!")
+	print ("All changes staged!")
 	
 	cnxn.commit()
 	print ("Commited changes to database! Thanks for helping out :)")
 	cnxn.close()
 
-main(sys.argv[1])
-
-#TODO: Add RAW INPUT LMAO for tournament slug
+if __name__ == "__main__":
+	main(sys.argv[1])
 
 
 
