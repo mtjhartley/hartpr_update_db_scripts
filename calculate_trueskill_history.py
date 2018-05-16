@@ -94,6 +94,7 @@ def update_database_with_trueskill_histores(crsr, all_players_trueskill_history)
 		#print (all_players_trueskill_history[player][player])
 		for set in all_players_trueskill_history[player][player]:
 			print (set)
+			#TODO: JUST STORE SIGMA AND MU LMAO
 			set["Trueskill"] = (float(set["Trueskill"].mu) - float(3.0 * set["Trueskill"].sigma)) * 100.0
 			insert_query_with_params = trueskill_history_insert_query % (set["PlayerId"], set["Trueskill"], set["TournamentId"], set["Date"])
 			crsr.execute(insert_query_with_params)
