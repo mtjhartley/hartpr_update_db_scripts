@@ -2,7 +2,9 @@ import pyodbc
 import struct
 import trueskill
 import database_connector
-
+"""DON'T USE THIS
+DEPRECATED
+USE CALCULATE_TRUESKILL_HISTORY"
 global_environment = trueskill.TrueSkill(draw_probability = 0)
 
 defaultRating = trueskill.Rating(25)

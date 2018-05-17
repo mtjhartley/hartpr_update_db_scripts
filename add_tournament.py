@@ -6,8 +6,8 @@ import sys
 import create_data_for_db
 import database_connector
 
-player_update_query_string = """UPDATE Players SET FirstName = "%s", LastName = "%s", Tag = "%s", State = "%s", UpdatedAt = CURRENT_TIMESTAMP, LastActive = "%s" WHERE SggPlayerId = %d """
-player_insert_query_string = """INSERT into Players (Id, FirstName, LastName, Tag, State, Trueskill, SggPlayerId, CreatedAt, UpdatedAt, LastActive) OUTPUT INSERTED.Id VALUES (NEWID(), "%s", "%s", "%s", "%s", 2500, %d, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "%s")""" 
+player_update_query_string = """UPDATE Players SET FirstName = "%s", LastName = "%s", Tag = "%s", State = "%s", UpdatedAt = CURRENT_TIMESTAMP WHERE SggPlayerId = %d """
+player_insert_query_string = """INSERT into Players (Id, FirstName, LastName, Tag, State, Trueskill, SggPlayerId, CreatedAt, UpdatedAt) OUTPUT INSERTED.Id VALUES (NEWID(), "%s", "%s", "%s", "%s", 2500, %d, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""" 
 set_with_score_insert_query_string = """INSERT into Sets (Id, WinnerId, LoserId, CreatedAt, UpdatedAt, TournamentId, WinnerScore, LoserScore) VALUES (NEWID(), "%s", "%s", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "%s", %d, %d)""" 
 set_no_score_insert_query_string = """INSERT into Sets (Id, WinnerId, LoserId, CreatedAt, UpdatedAt, TournamentId, WinnerScore, LoserScore) VALUES (NEWID(), "%s", "%s", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "%s", NULL, NULL)""" 
 
@@ -65,17 +65,18 @@ def add_or_update_players_to_db(crsr, players, player_sgg_ids_to_guids_from_db_m
 	for player in players:
 		if str(player["sgg_player_id"]) in player_sgg_ids_to_guids_from_db_map.keys():
 			#If the player last active date from teh database is none, we're going to assign the player["last_active"] from the tournament.
-			if (player_last_active_date_map[str(player["sgg_player_id"])] == None):
-				pass
+			#if (player_last_active_date_map[str(player["sgg_player_id"])] == None):
+			#	pass
 			#if the player[last_active] is smaller than the one from the database, aka adding an older tournament, rewrite the last active to be the db value
-			elif dt.strptime(player["last_active"], "%Y-%m-%d") < dt.strptime(player_last_active_date_map[str(player["sgg_player_id"])].split(" ")[0], "%Y-%m-%d"):
-				player["last_active"] = player_last_active_date_map[str(player["sgg_player_id"])]
+			#REMOVING THIS LAST ACTIVE THING, WILL BE RUN IN THE CALCULATE_TRUESKILL_HISTORY_SCRIPT.
+			#elif dt.strptime(player["last_active"], "%Y-%m-%d") < dt.strptime(player_last_active_date_map[str(player["sgg_player_id"])].split(" ")[0], "%Y-%m-%d"):
+			#	player["last_active"] = player_last_active_date_map[str(player["sgg_player_id"])]
 
-			update_query_with_params = player_update_query_string % (player["fname"], player["lname"], player["tag"], player["state"], player["last_active"], player["sgg_player_id"])
+			update_query_with_params = player_update_query_string % (player["fname"], player["lname"], player["tag"], player["state"], player["sgg_player_id"])
 			crsr.execute(update_query_with_params)
 			player_updated_count += 1
 		else:
-			insert_query_with_params = player_insert_query_string % (player["fname"], player["lname"], player["tag"], player["state"], player["sgg_player_id"], player["last_active"])
+			insert_query_with_params = player_insert_query_string % (player["fname"], player["lname"], player["tag"], player["state"], player["sgg_player_id"])
 			crsr.execute(insert_query_with_params)
 			row = crsr.fetchone()
 			player_sgg_ids_to_guids_from_db_map.update( {str(player["sgg_player_id"]): str(row[0])} )

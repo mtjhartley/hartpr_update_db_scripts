@@ -6,8 +6,15 @@ import database_connector
 global_environment = trueskill.TrueSkill(draw_probability = 0)
 
 defaultRating = trueskill.Rating(25)
+#TODO: Change this to include where Tournamenet ID in (select statement from tournament tables for tournaments with specific game id i.e. melee, smash5)
+trueskill_history_delete_query = ("""DELETE from TrueskillHistories""")
+trueskill_history_insert_query = ("""INSERT INTO TrueskillHistories (Id, PlayerId, Trueskill, TournamentId) values (NEWID(), "%s", %0.2f, "%s")""")
+trueskill_player_update_query = ("""UPDATE PLAYERS set Trueskill = %0.2f, LastActive = "%s" where Id = "%s" """)
 
-trueskill_history_insert_query = ("""INSERT INTO TrueskillHistories (Id, PlayerId, Trueskill, TournamentId, TournamentDate) values (NEWID(), "%s", %d, "%s", "%s")""")
+def delete_trueskill_history_from_database(crsr):
+	#maybe catch an exception if somethign fails?
+	crsr.execute(trueskill_history_delete_query)
+	return True
 
 def create_player_map_with_trueskill(crsr):
 	player_to_trueskill_map = {} 
@@ -93,11 +100,17 @@ def update_database_with_trueskill_histores(crsr, all_players_trueskill_history)
 		#
 		#print (all_players_trueskill_history[player][player])
 		for set in all_players_trueskill_history[player][player]:
-			print (set)
-			#TODO: JUST STORE SIGMA AND MU LMAO
-			set["Trueskill"] = (float(set["Trueskill"].mu) - float(3.0 * set["Trueskill"].sigma)) * 100.0
-			insert_query_with_params = trueskill_history_insert_query % (set["PlayerId"], set["Trueskill"], set["TournamentId"], set["Date"])
+			#print (set)
+			set["Trueskill"] = (float(set["Trueskill"].mu) - float(3.00 * set["Trueskill"].sigma)) * 100.00
+			print (set["Trueskill"])
+			insert_query_with_params = trueskill_history_insert_query % (set["PlayerId"], set["Trueskill"], set["TournamentId"])
+			print (insert_query_with_params)
 			crsr.execute(insert_query_with_params)
+		#use the most recent set to update the player table
+		most_recent_trueskill = all_players_trueskill_history[player][player][-1]
+		update_query_with_params = trueskill_player_update_query % (most_recent_trueskill["Trueskill"], most_recent_trueskill["Date"], most_recent_trueskill["PlayerId"] )
+		crsr.execute(update_query_with_params)
+
 	print ("All histories added to the database.")
 
 
@@ -107,6 +120,8 @@ def main():
 	cnxn = database_connector.create_connection(database_connector.CONNECTION_STRING)
 	cnxn.add_output_converter(-155, database_connector.handle_datetimeoffset)
 	cursor = cnxn.cursor()
+
+	delete_trueskill_history_from_database(cursor)
 
 	player_to_trueskill_map = create_player_map_with_trueskill(cursor)
 	tournaments = create_list_of_tournaments(cursor)
