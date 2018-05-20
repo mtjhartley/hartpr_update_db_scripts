@@ -15,7 +15,7 @@ def create_data_for_database_entry(tourney_name, event_name):
 	entrant_id_to_sgg_player_id_map = map_entrant_id_to_sgg_player_id(melee_singles_bracket_ids)
 
 	tournament_from_api = smash.tournament_show_with_brackets(tourney_name, event_name)
-	tournament = create_tournament_entity(tournament_from_api, event_name)
+	tournament = create_tournament_entity(tournament_from_api)
 
 	sets = get_sets(melee_singles_bracket_ids)
 	update_sets_with_sgg_ids(sets, entrant_id_to_sgg_player_id_map, tournament)
@@ -27,8 +27,6 @@ def create_data_for_database_entry(tourney_name, event_name):
 
 	print ("Data dictionary successfully created!")
 	return data_dictionary
-
-
 
 #Get all of the sets from a tournament and flatten them
 def get_sets(bracket_ids):
@@ -91,7 +89,7 @@ def update_players_with_sgg_player_id(players_from_api, entrant_id_to_sgg_player
 	return players_from_api
 
 #Create tournament entity from api
-def create_tournament_entity(tournament_from_api, event_name):
+def create_tournament_entity(tournament_from_api):
 	tournament = {}
 	tournament["name"] = tournament_from_api["name"]
 	tournament["website"] = "smashgg"
@@ -102,7 +100,13 @@ def create_tournament_entity(tournament_from_api, event_name):
 	start_date = start_date_object.isoformat()
 	tournament["date"] = start_date
 	tournament["sgg_tournament_id"] = tournament_from_api["tournament_id"]
-	tournament["event_name"] = event_name
+	#TODO DELTE TIS
+	print (tournament_from_api)
 	return tournament
 
-#create_data_for_database_entry("tony-town-ii-swag-me-out", "melee-singles")
+data = create_data_for_database_entry("emerald-city-ii", "melee-singles")
+data2 = create_data_for_database_entry("emerald-city-ii", "wii-u-singles")
+
+print (data["tournament"]["sgg_tournament_id"])
+print (data2["tournament"]["sgg_tournament_id"])
+print (data["tournament"])

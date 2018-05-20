@@ -9,8 +9,17 @@ import database_connector
 
 """Calculate Trueskill History should be run after this script, always"""
 
-def get_tournament_by_slug(crsr, tournament_slug):
-	crsr.execute("""SELECT ID, Name FROM tournaments WHERE URL = "%s" """ % tournament_slug)
+
+def get_game_id(crsr, event_name):
+	crsr.execute("""SELECT Id FROM Games WHERE event = "%s" """ % event_name)
+	game_id = crsr.fetchone()
+	if (game_id):
+		game_id = str(game_id[0])
+
+	return game_id
+
+def get_tournament_by_slug(crsr, tournament_slug, game_id):
+	crsr.execute("""SELECT ID, Name FROM tournaments WHERE URL = "%s" and GameId = "%s" """ % (tournament_slug, game_id))
 	row = crsr.fetchone()
 	if row:
 		return {"id": str(row[0]), "name": (str(row[1]))}
@@ -35,12 +44,14 @@ def delete_trueskill_history_by_tournament_id(crsr, tournament):
 	crsr.execute("""DELETE FROM TrueskillHistories WHERE TournamentId = "%s" """ % id)
 	print ("Trueskill Histories Deleted.")
 
-def main(tournament_slug):
+def main(tournament_slug, event_name):
 	cnxn = database_connector.create_connection(database_connector.CONNECTION_STRING)
 	cnxn.add_output_converter(-155, database_connector.handle_datetimeoffset)
 	cursor = cnxn.cursor()
 
-	tournament = get_tournament_by_slug(cursor, tournament_slug)
+	game_id = get_game_id(cursor, event_name)
+
+	tournament = get_tournament_by_slug(cursor, tournament_slug, game_id)
 	if not tournament:
 		print ("Couldn't find the tournament")
 		return
@@ -56,4 +67,4 @@ def main(tournament_slug):
 	cnxn.close()
 
 if __name__ == "__main__":
-	main(sys.argv[1])
+	main(sys.argv[1], sys.argv[2])

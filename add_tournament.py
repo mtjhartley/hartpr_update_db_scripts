@@ -34,24 +34,32 @@ def get_player_last_active_date_map(crsr):
 
 	return player_last_active_date_map
 
+def get_game_id(crsr, tournament):
+	crsr.execute("""SELECT Id FROM Games WHERE event = "%s" """ % tournament["event_name"])
+	game_id = crsr.fetchone()
+	if (game_id):
+		game_id = str(game_id[0])
+
+	return game_id
+
 #Return a boolean and use it to end the main method if the tournament is already in the DB
-def does_tournament_exist(crsr, tournament):
+def does_tournament_exist(crsr, tournament, game_id):
 	print ("Checking if tournament exists in the database already...")
 	tournament_id_from_database = None
 
-	crsr.execute("SELECT SggTournamentId from TOURNAMENTS where SggTournamentId = %d" % tournament["sgg_tournament_id"])
+	crsr.execute("""SELECT SggTournamentId from TOURNAMENTS where SggTournamentId = %d and GameId = "%s" """ % (tournament["sgg_tournament_id"], game_id))
 	row = crsr.fetchone()
 	if (row):
 		print ("The sggTournamentId is '%s' the content of the row is '%s' and the name of the tournament is '%s' " % (tournament["sgg_tournament_id"], row, tournament["name"]))
 		print ("This tournament exists already, ending application")
 		return True
-	print ("This is a new tournament! Beginning process to add Tournament, Players, and Sets...")
+	print ("""This is a new tournament for this event: "%s" ! Beginning process to add Tournament, Players, and Sets...""" % tournament["event_name"])
 	return False
 
 #Process to add tournament to DB
-def add_tournament_to_db(crsr, tournament):
+def add_tournament_to_db(crsr, tournament, game_id):
 	print ("Adding %s to Database" % tournament["name"])
-	crsr.execute("""INSERT into Tournaments (Id, Name, URL, Date, CreatedAt, UpdatedAt, SggTournamentId, Website) OUTPUT INSERTED.Id VALUES (NEWID(), "%s", "%s", "%s", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "%d", "%s")""" % (tournament["name"], tournament["url"], tournament["date"], tournament["sgg_tournament_id"], tournament["website"]))
+	crsr.execute("""INSERT into Tournaments (Id, Name, URL, Date, CreatedAt, UpdatedAt, SggTournamentId, Website, GameId) OUTPUT INSERTED.Id VALUES (NEWID(), "%s", "%s", "%s", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "%d", "%s", "%s")""" % (tournament["name"], tournament["url"], tournament["date"], tournament["sgg_tournament_id"], tournament["website"], game_id))
 	row = crsr.fetchone()
 	tournament_id_from_database = str(row[0])
 	return tournament_id_from_database
@@ -106,22 +114,24 @@ def add_sets_to_db(crsr, sets, player_sgg_ids_to_guids_from_db_map, tournament_i
 	print ("Sets successfully added to the database!")
 
 
-def main(tournament_slug):
+def main(tournament_slug, event_name):
 	tournament_exists = False
 
 	cnxn = database_connector.create_connection(database_connector.CONNECTION_STRING)
 	cnxn.add_output_converter(-155, database_connector.handle_datetimeoffset)
 	cursor = cnxn.cursor()
 
-	data_dictionary = create_data_for_db.create_data_for_database_entry(tournament_slug, "melee-singles")
+	data_dictionary = create_data_for_db.create_data_for_database_entry(tournament_slug, event_name)
 	players = data_dictionary["players"]
 	tournament = data_dictionary["tournament"]
 	sets = data_dictionary["sets"]
 
-	tournament_exists = does_tournament_exist(cursor, tournament)
+	game_id = get_game_id(cursor, tournament)
+
+	tournament_exists = does_tournament_exist(cursor, tournament, game_id)
 	if (tournament_exists):
 		return #end the app lmao
-	new_tournament_guid = add_tournament_to_db(cursor, tournament)
+	new_tournament_guid = add_tournament_to_db(cursor, tournament, game_id)
 
 	player_sgg_ids_to_guids_from_db_map = get_player_sgg_ids_to_guids_from_db_map(cursor)
 	player_last_active_date_map = get_player_last_active_date_map(cursor)
@@ -137,7 +147,9 @@ def main(tournament_slug):
 	cnxn.close()
 
 if __name__ == "__main__":
-	main(sys.argv[1])
+	#if running this script directly, you need to supply the tournament slug and the event name
+	#this should never be done, use the game specific scripts.
+	main(sys.argv[1], sys.argv[2])
 
 
 
