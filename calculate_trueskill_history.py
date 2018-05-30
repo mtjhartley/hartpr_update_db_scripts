@@ -150,8 +150,8 @@ def update_database_with_trueskill_histores(crsr, all_players_trueskill_history,
 		#print (all_players_trueskill_history)
 		#print (all_players_trueskill_history[player][player])
 		most_recent_trueskill = all_players_trueskill_history[player][player][-1]
-		update_query_with_params = trueskill_player_update_query % (column_name, most_recent_trueskill["Trueskill"], most_recent_trueskill["Date"], most_recent_trueskill["PlayerId"] )
-		crsr.execute(update_query_with_params)
+		#update_query_with_params = trueskill_player_update_query % (column_name, most_recent_trueskill["Trueskill"], most_recent_trueskill["Date"], most_recent_trueskill["PlayerId"] )
+		#crsr.execute(update_query_with_params)
 
 	print ("All histories added to the database.")
 

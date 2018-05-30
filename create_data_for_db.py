@@ -106,3 +106,8 @@ def create_tournament_entity(tournament_from_api, event_name):
 	return tournament
 
 #create_data_for_database_entry("tony-town-ii-swag-me-out", "melee-singles")
+
+if __name__ == "__main__":
+	#if running this script directly, you need to supply the tournament slug and the event name
+	#this should never be done, use the game specific scripts.
+	create_data_for_database_entry("emerald-city-6", "melee-singles")

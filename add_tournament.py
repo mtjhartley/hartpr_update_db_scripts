@@ -10,6 +10,7 @@ player_update_query_string = """UPDATE Players SET FirstName = "%s", LastName = 
 player_insert_query_string = """INSERT into Players (Id, FirstName, LastName, Tag, State, Trueskill, SggPlayerId, CreatedAt, UpdatedAt) OUTPUT INSERTED.Id VALUES (NEWID(), "%s", "%s", "%s", "%s", 2500, %d, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""" 
 set_with_score_insert_query_string = """INSERT into Sets (Id, WinnerId, LoserId, CreatedAt, UpdatedAt, TournamentId, WinnerScore, LoserScore) VALUES (NEWID(), "%s", "%s", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "%s", %d, %d)""" 
 set_no_score_insert_query_string = """INSERT into Sets (Id, WinnerId, LoserId, CreatedAt, UpdatedAt, TournamentId, WinnerScore, LoserScore) VALUES (NEWID(), "%s", "%s", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "%s", NULL, NULL)""" 
+player_tournaments_insert_query_string = """INSERT into PlayerTournaments (Id, PlayerId, TournamentId, Seed, Placing) VALUES (NEWID(), "%s", "%s", %d, %d)""" 
 
 #Get a map of SGG Player Id to Player GUID from db
 def get_player_sgg_ids_to_guids_from_db_map(crsr):
@@ -113,6 +114,25 @@ def add_sets_to_db(crsr, sets, player_sgg_ids_to_guids_from_db_map, tournament_i
 		crsr.execute(insert_query_with_params)
 	print ("Sets successfully added to the database!")
 
+#Process to add player, seed, placement, and tournament id to DB
+def add_player_seed_placement_for_tournament(crsr, players, player_sgg_ids_to_guids_from_db_map, tournament_id_from_database):
+	print ("Beginning to add player seed, placement to PlayerTournaments Table")
+	for player in players:
+		#print ("this is the player object")
+		#print (player)
+		placement = player["final_placement"]
+		#STORE THESE VALUES, Cloudy Melee Test Run Ham had a none placing?? 
+		if placement == None:
+			placement = -1
+		seed = player["seed"]
+		if seed == None:
+			seed = -1
+		player_id = player_sgg_ids_to_guids_from_db_map[str(player["sgg_player_id"])]
+		tournament_id = tournament_id_from_database
+		print (player_id, tournament_id, placement, seed, player["tag"])
+		insert_query_with_params = player_tournaments_insert_query_string % (player_id, tournament_id, seed, placement)
+		crsr.execute(insert_query_with_params)
+	print ("All playerTournament information (seed, placing) successfully added to the database!")
 
 def main(tournament_slug, event_name):
 	tournament_exists = False
@@ -139,6 +159,8 @@ def main(tournament_slug, event_name):
 	add_or_update_players_to_db(cursor, players, player_sgg_ids_to_guids_from_db_map, player_last_active_date_map)
 
 	add_sets_to_db(cursor, sets, player_sgg_ids_to_guids_from_db_map, new_tournament_guid)
+
+	add_player_seed_placement_for_tournament(cursor, players, player_sgg_ids_to_guids_from_db_map, new_tournament_guid)
 
 	print ("All changes staged!")
 	

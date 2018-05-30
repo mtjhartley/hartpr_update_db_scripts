@@ -18,4 +18,4 @@ tournaments = []
 getfile(sys.argv[1], tournaments)
 
 for tournament in tournaments:
-	add_tournament.main(str(tournament))
+	add_tournament.main(str(tournament), sys.argv[2])
